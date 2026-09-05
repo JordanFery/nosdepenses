@@ -1,0 +1,73 @@
+// Schéma Prisma — Application de gestion des dépenses de couple
+// PostgreSQL (Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Utilisée par Prisma pour les migrations (connexion directe, non-poolée)
+  directUrl = env("DIRECT_URL")
+}
+
+/// Un utilisateur représente Jordan ou Samya.
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  createdAt DateTime  @default(now())
+  expenses  Expense[]
+
+  @@map("users")
+}
+
+/// Catégorie de dépense (Courses, Restaurant, etc.)
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  icon      String    @default("Tag")
+  createdAt DateTime  @default(now())
+  expenses  Expense[]
+
+  @@map("categories")
+}
+
+/// Une dépense (commune, répartie 50/50) ou un remboursement en argent
+/// entre les deux membres du couple (qui ne se répartit pas : il s'impute
+/// intégralement sur la balance).
+enum ExpenseType {
+  EXPENSE
+  REIMBURSEMENT
+}
+
+/// Une dépense payée par Jordan ou Samya, ou un remboursement en argent
+/// donné directement de l'un à l'autre.
+model Expense {
+  id          String      @id @default(cuid())
+  amount      Decimal     @db.Decimal(10, 2)
+  description String?
+  date        DateTime    @db.Date
+  type        ExpenseType @default(EXPENSE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  /// Pour une dépense (EXPENSE) : la personne qui a payé.
+  /// Pour un remboursement (REIMBURSEMENT) : la personne qui a donné
+  /// l'argent (le receveur est déduit automatiquement, car il n'y a que
+  /// deux utilisateurs dans le foyer).
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  /// Optionnelle : un remboursement n'appartient à aucune catégorie de
+  /// dépense.
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@index([userId])
+  @@index([categoryId])
+  @@index([type])
+  @@map("expenses")
+}
